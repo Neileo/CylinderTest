@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>three.js webgl - Circle 2 Circle</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            font-family: Monospace;
+            background-color: #f0f0f0;
+            margin: 0px;
+            overflow: hidden;
+        }
+
+        #distance{
+            font-family: "Times New Roman";
+            font-size:30px;
+            position:absolute;
+            top:40px;
+            right:40px;
+        }
+    </style>
+</head>
+<body>
+
+<script src="../build/three.js"></script>
+
+<script src="js/controls/DragControls.js"></script>
+<script src="js/controls/TrackballControls.js"></script>
+<script src="js/controls/TransformControls.js"></script>
+
+<script src="js/libs/stats.min.js"></script>
+<P id = "distance"> NULL　</P>
+
+<script>
+
+    var pi = 3.1415926;
+    var container, stats;
+    var camera, controls, scene, renderer;
+    var objects = [];
+    var cir0 = [];
+    var cir1 = [];
+    var cir0c = new THREE.Vector3();
+    var cir0n = new THREE.Vector3();
+    var cir0r;
+    var cir0u = new THREE.Vector3();
+    var cir0v = new THREE.Vector3();
+    var cir1c = new THREE.Vector3();
+    var cir1n = new THREE.Vector3();
+    var cir1r;
+    var cir1u = new THREE.Vector3();
+    var cir1v = new THREE.Vector3();
+    var b0 = new THREE.Vector3();
+    var b1 = new THREE.Vector3();
+    var t0 = new THREE.Vector3();
+    var t1 = new THREE.Vector3();
+    var normal0 = new THREE.Vector3(0,0,1);
+    var normal1 = new THREE.Vector3(0,0,1);
+    var ansV1 = new THREE.Vector3();
+    var ansV2 = new THREE.Vector3();
+    var raycaster1 = new THREE.Raycaster();
+    var raycaster2 = new THREE.Raycaster();
+
+    var geometry = new THREE.SphereGeometry( 7, 32, 32 );
+    var geometryCy = new THREE.CylinderGeometry( 80, 80, 100, 32);
+    var geometryCone = new THREE.CylinderGeometry(80, 40, 100, 32);
+    var material1 = new THREE.MeshBasicMaterial( {color: 0x22ee22} );
+    var material2 = new THREE.MeshBasicMaterial( {color: 0x00ff00} );
+    var materialcy1 = new THREE.MeshBasicMaterial({ color: 0xff8e88,opacity: 0.8,transparent:true, side:THREE.DoubleSide});
+    var materialcy2 = new THREE.MeshBasicMaterial({ color: 0x8e88ff,opacity: 0.8,transparent:true, side:THREE.DoubleSide});
+    var materialL = new THREE.LineBasicMaterial({color:0x00ffff});
+    var sphere1 = new THREE.Mesh( geometry, material1 );
+    var sphere2 = new THREE.Mesh( geometry, material1 );
+
+    var cylinder1 = new THREE.Mesh(geometryCone, materialcy1);
+    var cylinder2 = new THREE.Mesh(geometryCy, materialcy2);
+    var line0 = new THREE.Line();
+    var line1 = new THREE.Line();
+    var lineans = new THREE.Line();
+    //    var sphere3 = new THREE.Mesh( geometry0, material2);
+
+    init();
+    animate();
+
+    function init() {
+
+        container = document.createElement( 'div' );
+        document.body.appendChild( container );
+
+        camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 10000 );
+        camera.position.z = 1000;
+
+        controls = new THREE.TrackballControls( camera );
+        controls.rotateSpeed = 1.0;
+        controls.zoomSpeed = 1.2;
+        controls.panSpeed = 0.8;
+        controls.noZoom = false;
+        controls.noPan = false;
+        controls.staticMoving = true;
+        controls.dynamicDampingFactor = 0.3;
+
+        scene = new THREE.Scene();
+
+        scene.add( new THREE.AmbientLight( 0x505050 ) );
+
+        var light = new THREE.SpotLight( 0xffffff, 1.5 );
+        light.position.set( 0, 500, 2000 );
+        light.castShadow = true;
+
+        light.shadow = new THREE.LightShadow( new THREE.PerspectiveCamera( 50, 1, 200, 10000 ) );
+        light.shadow.bias = - 0.00022;
+
+        light.shadow.mapSize.width = 2048;
+        light.shadow.mapSize.height = 2048;
+
+        scene.add( light );
+
+        var geometry = new THREE.CircleGeometry(5,32);
+        var object1 = new THREE.Mesh( new THREE.CircleGeometry(5,32), new THREE.MeshBasicMaterial( { color: 0xff8e88 ,side: THREE.DoubleSide} ) );
+        var object2 = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { color: 0xff8e88 ,side: THREE.DoubleSide} ) );
+
+        object1.position.x = Math.random() * 1000 - 500;
+        object1.position.y = Math.random() * 600 - 300;
+        object1.position.z = Math.random() * 800 - 400;
+
+        object1.rotation.x = Math.random() * 2 * Math.PI;
+        object1.rotation.y = Math.random() * 2 * Math.PI;
+        object1.rotation.z = Math.random() * 2 * Math.PI;
+
+        object2.position.x = Math.random() * 1000 - 500;
+        object2.position.y = Math.random() * 600 - 300;
+        object2.position.z = Math.random() * 800 - 400;
+
+        object2.rotation.x = Math.random() * 2 * Math.PI;
+        object2.rotation.y = Math.random() * 2 * Math.PI;
+        object2.rotation.z = Math.random() * 2 * Math.PI;
+
+        object2.castShadow = true;
+        object2.receiveShadow = true;
+
+        scene.add( object1 );
+        scene.add( object2 );
+
+        objects.push( object1 );
+        objects.push( object2 );
+
+        objects[0].material.transparent = true;
+        objects[0].material.opacity = 0.0;
+        objects[1].material.transparent = true;
+        objects[1].material.opacity = 0.0;
+
+//        var normalcy = new THREE.Vector3(0,0,1);
+//        var quaternioncy = new THREE.Quaternion(objects[0].quaternion.x,objects[0].quaternion.y,objects[0].quaternion.z,objects[0].quaternion.w);
+        cylinder1.rotateX(0.5 * Math.PI);
+        cylinder2.rotateX(0.5 * Math.PI);
+        cylinder1.castShadow = false;
+        cylinder1.receiveShadow = false;
+        cylinder1.material.opacity = 0.60;
+        cylinder2.castShadow = false;
+        cylinder2.receiveShadow = false;
+        cylinder2.material.opacity = 0.60;
+
+        cylinder1.castShadow = true;
+        cylinder2.castShadow = true;
+        cylinder1.recieveShadow = false;
+        cylinder2.receiveShadow = false;
+        scene.add( cylinder1 );
+        scene.add( cylinder2 );
+
+        objects[0].add(cylinder1);
+        objects[1].add(cylinder2);
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+        renderer.setClearColor( 0xf0f0f0 );
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.sortObjects = false;
+
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+
+        container.appendChild( renderer.domElement );
+
+        var dragControls = new THREE.DragControls(objects, camera, renderer.domElement );
+        dragControls.addEventListener( 'dragstart', function ( event ) { controls.enabled = false; hideTransform();} );
+        dragControls.addEventListener( 'dragend', function ( event ) { controls.enabled = true; delayHideTransform();} );
+        dragControls.addEventListener( 'hoveron', function ( event ) {
+
+            transformControl.attach( event.object );
+            cancelHideTransorm();
+
+        } );
+
+        dragControls.addEventListener( 'hoveroff', function ( event ) {
+
+            delayHideTransform();
+
+        } );
+
+
+        transformControl = new THREE.TransformControls( camera, renderer.domElement );
+        transformControl.addEventListener( 'change', render );
+
+        scene.add( transformControl );
+
+        // Hiding transform situation is a little in a mess :()
+        transformControl.addEventListener( 'change', function( e ) {
+
+            cancelHideTransorm();
+
+        } );
+
+        transformControl.addEventListener( 'mouseDown', function( e ) {
+
+            cancelHideTransorm();
+
+        } );
+
+        transformControl.addEventListener( 'mouseUp', function( e ) {
+
+            delayHideTransform();
+
+        } );
+
+        transformControl.addEventListener( 'objectChange', function( e ) {
+
+            //updateSplineOutline();
+
+        } );
+
+        var hiding;
+
+        function delayHideTransform() {
+
+            cancelHideTransorm();
+            hideTransform();
+
+        }
+
+        function hideTransform() {
+
+            hiding = setTimeout( function() {
+
+                transformControl.detach( transformControl.object );
+
+            }, 250 )
+
+        }
+
+        function cancelHideTransorm() {
+
+            if ( hiding ) clearTimeout( hiding );
+
+        }
+
+
+
+        var info = document.createElement( 'div' );
+        info.style.position = 'absolute';
+        info.style.top = '10px';
+        info.style.width = '100%';
+        info.style.textAlign = 'center';
+        info.innerHTML = '<a href="http://threejs.org" target="_blank">three.js</a> webgl - cylinder test';
+        container.appendChild( info );
+
+        stats = new Stats();
+        container.appendChild( stats.dom );
+
+        //
+
+        window.addEventListener( 'resize', onWindowResize, false );
+
+    }
+
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    function calNormal( vec1, vec2){
+        var vec = new THREE.Vector3();
+//        vec1.normalize();
+//        vec2.normalize();
+        vec.crossVectors(vec1,vec2);
+        vec.normalize();
+        return vec;
+    }
+
+    function dis(v1,v2){
+        var ansdis = (v1.x-v2.x)*(v1.x-v2.x)+(v1.y-v2.y)*(v1.y-v2.y)+(v1.z-v2.z)*(v1.z-v2.z);
+        return ansdis;
+    }
+    //
+
+    function animate() {
+
+        requestAnimationFrame( animate );
+
+        render();
+        stats.update();
+
+    }
+    function DistancePointToLine(star,end,center){
+        var distance;
+        var x0 = center.x;
+        var y0 = center.y;
+        var z0 = center.z;
+        var x1 = star.x;
+        var y1 = star.y;
+        var z1 = star.z;
+        var x2 = end.x;
+        var y2 = end.y;
+        var z2 = end.z;
+
+        var t = ((x1-x0)*(x1-x2)+(y1-y0)*(y1-y2)+(z1-z0)*(z1-z2))/((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2));
+
+        if(0<= t && t<=1)
+        {
+            var temp = new THREE.Vector3(x1+t*(x2-x1),y1+t*(y2-y1),z1+t*(z2-z1));
+            distance = dis(temp,center);
+        }
+        if(t<0)
+        {
+            distance = dis(star,center);
+        }
+        if(t>1)
+        {
+            distance = dis(end, center);
+        }
+        return distance;
+    }
+
+    function calPoint(a,b,c,d,ans1,ans2) {
+        var x0 = c.x;
+        var y0 = c.y;
+        var z0 = c.z;
+        var x1 = a.x;
+        var y1 = a.y;
+        var z1 = a.z;
+        var x2 = b.x;
+        var y2 = b.y;
+        var z2 = b.z;
+
+        var t = ((x1-x0)*(x1-x2)+(y1-y0)*(y1-y2)+(z1-z0)*(z1-z2))/((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2));
+
+        if (0<=t && t<=1)
+        {
+            ans1.x = c.x;
+            ans1.y = c.y;
+            ans1.z = c.z;
+            ans2.x = x1 + t*(x2-x1);
+            ans2.y = y1 + t*(y2-y1);
+            ans2.z = z1 + t*(z2-z1);
+        }
+        if (t<0)
+        {
+            ans1.x = c.x;
+            ans1.y = c.y;
+            ans1.z = c.z;
+            ans2.x = x1;
+            ans2.y = y1;
+            ans2.z = z1;
+        }
+        if(t>1)
+        {
+            ans1.x = c.x;
+            ans1.y = c.y;
+            ans1.z = c.z;
+            ans2.x = x2;
+            ans2.y = y2;
+            ans2.z = z2;
+        }
+    }
+
+    function calDistance(b0,b1,t0,t1){
+        var distance;
+        var reAns = {};
+
+        var a = t1.x-b1.x;
+        var b = t1.y-b1.y;
+        var c = t1.z-b1.z;
+//        var dis1 = dis(t1,b1);
+//        a /= dis1;
+//        b /= dis1;
+//        c /= dis1;
+
+        var d = t0.x-b0.x;
+        var e = t0.y-b0.y;
+        var f = t0.z-b0.z;
+        var dis0 = Math.sqrt(d*d+e*e+f*f);
+        d /= dis0;
+        e /= dis0;
+        f /= dis0;
+
+        var o = t0.x;
+        var p = t0.y;
+        var q = t0.z;
+        var u = t1.x;
+        var v = t1.y;
+        var w = t1.z;
+
+        var height = (dis0 * 80)/40 +dis0;
+        var line = Math.sqrt(height * height + 80 * 80);
+        var cos = 80/line;
+
+        var r = c*c*d - a*c*f - a*b*e + b*b*d + a*b*cos;
+        var s = a*a*e - a*b*d - a*a*cos - b*c*f + c*c*e - c*c*cos;
+        var t = b*b*f - b*c*e + b*c*cos - a*c*d + a*a*f;
+
+        var anspx = (a*r*u + a*s*v + a*t*w - a*s*p - a*t*q - b*s*o - c*t*o)/(a*r - b*s - c*t);
+        var anspy = (b*r*u + b*s*v + b*t*w - b*o*r - 2*b*s*p - b*t*q + a*r*p - c*t*p)/(a*r - b*s - c*t);
+        var anspz = (c*r*u + c*s*v + c*t*w - c*o*r - c*p*s - 2*c*q*t + a*q*r - b*q*s)/(a*r - b*s - c*t);
+
+        var kx = b*f - c*e + c*cos;
+        var ky = c*d - a*f;
+        var kz = a*e - b*d - a*cos;
+
+        var t = anspx/kx;
+        anspx = anspx - t*kx;
+        anspy = anspy - t*ky;
+        anspz = anspz - t*kz;
+
+        var pointS = new THREE.Vector3(anspx,anspy,anspz);
+        var kLine1 = new THREE.Vector3(kx,ky,kz);
+        var kLine2 = new THREE.Vector3(-kx,-ky,-kz);
+
+        raycaster1.set(pointS,kLine1);
+        raycaster2.set(pointS,kLine2);
+        var touchPoint1 = raycaster1.intersectObject(cylinder1);
+        var touchPoint2 = raycaster1.intersectObject(cylinder2);
+        var touchPoint3 = raycaster2.intersectObject(cylinder1);
+        var touchPoint4 = raycaster2.intersectObject(cylinder2);
+
+        return reAns;
+    }
+
+    function render() {
+
+        controls.update();
+
+        var normal0 = new THREE.Vector3(0,0,1);
+        var quaternion0 = new THREE.Quaternion(objects[0].quaternion.x,objects[0].quaternion.y,objects[0].quaternion.z,objects[0].quaternion.w);
+        normal0.applyQuaternion(quaternion0);
+        normal0.normalize();
+        cir0c = new THREE.Vector3(objects[0].position.x,objects[0].position.y,objects[0].position.z);
+        cir0n = new THREE.Vector3(normal0.x,normal0.y,normal0.z);
+        cir0r = 80;
+        var p0 = new THREE.Vector3(objects[0].geometry.vertices[3].x,objects[0].geometry.vertices[3].y,objects[0].geometry.vertices[3].z);
+        cir0u = p0.applyQuaternion(quaternion0);
+        cir0u.normalize();
+        cir0v = calNormal(cir0n,cir0u);
+        var normal1 = new THREE.Vector3(0,0,1);
+        var quaternion1 = new THREE.Quaternion(objects[1].quaternion.x,objects[1].quaternion.y,objects[1].quaternion.z,objects[1].quaternion.w);
+        normal1.applyQuaternion(quaternion1);
+        normal1.normalize();
+        cir1c = new THREE.Vector3(objects[1].position.x,objects[1].position.y,objects[1].position.z);
+        cir1n = new THREE.Vector3(normal1.x,normal1.y,normal1.z);
+        cir1r = 80;
+        var p1 = new THREE.Vector3(objects[1].geometry.vertices[1].x,objects[1].geometry.vertices[1].y,objects[1].geometry.vertices[1].z);
+        cir1u = p1.applyQuaternion(quaternion1);
+        cir1u.normalize();
+        cir1v = calNormal(cir1n,cir1u);
+
+        t0 = new THREE.Vector3(cir0c.x + 50 * normal0.x, cir0c.y + 50 * normal0.y, cir0c.z + 50 * normal0.z);
+        b0 = new THREE.Vector3(cir0c.x - 50 * normal0.x, cir0c.y - 50 * normal0.y, cir0c.z - 50 * normal0.z);
+        t1 = new THREE.Vector3(cir1c.x + 50 * normal1.x, cir1c.y + 50 * normal1.y, cir1c.z + 50 * normal1.z);
+        b1 = new THREE.Vector3(cir1c.x - 50 * normal1.x, cir1c.y - 50 * normal1.y, cir1c.z - 50 * normal1.z);
+
+//        var geometryl0 = new THREE.Geometry();
+//        geometryl0.vertices.push(
+//            t0,b0
+//        );
+        var ansDis = calDistance(b0,b1,t0,t1);
+        var geometryl0 = new THREE.Geometry();
+        geometryl0.vertices.push(
+            t0,b0
+        );
+        var geometryl1 = new THREE.Geometry();
+        geometryl1.vertices.push(
+            t1,b1
+        );
+
+        scene.remove(line0);
+        scene.remove(line1);
+
+        line0 = new THREE.Line(geometryl0, materialL);
+        line1 = new THREE.Line(geometryl1, materialL);
+        line0.name = line0;
+        line1.name = line1;
+        scene.add(line0,line1);
+
+        sphere1.position.x = ansDis[0].x;
+        sphere1.position.y = ansDis[0].y;
+        sphere1.position.z = ansDis[0].z;
+        scene.add( sphere1 );
+
+
+        sphere2.position.x = ansDis[1].x;
+        sphere2.position.y = ansDis[1].y;
+        sphere2.position.z = ansDis[1].z;
+        scene.add( sphere2 );
+
+
+        scene.remove(lineans);
+        var geometryans = new THREE.Geometry();
+        geometryans.vertices.push(
+            ansDis[0],ansDis[1]
+        );
+        lineans = new THREE.Line(geometryans, materialL);
+        scene.add(lineans);
+
+        var showdis = document.getElementById('distance');
+        showdis.innerHTML = ansDis[2];
+        renderer.render( scene, camera );
+
+    }
+
+</script>
+
+
+</body>
+</html>

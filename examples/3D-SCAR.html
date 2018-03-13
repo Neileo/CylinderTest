@@ -1,0 +1,484 @@
+<!-- very neat terrain generator from here: http://www.playfuljs.com/realistic-terrain-in-130-lines/  -->
+<!-- WebGL version by me  -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Terrain Generator in WebGL</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="Generator" content="https://github.com/callumprentice/ThreeJsAppTemplate">
+    <style type="text/css">
+        body {
+            background-color: #000;
+            color: #ff0;
+            margin: 0;
+            overflow: hidden;
+        }
+        #title {
+            width:440px ;
+            background-color:rgba(100,100,100,0.6);
+            top:16px;
+            left: 16px;
+            height: 58px;
+            position:absolute;
+            padding: 12px;
+            padding-top:4px;
+            z-index:10;
+            color:yellow;
+            font-family: Verdana, Arial;
+            font-size: 0.75em;
+            border-radius: 10px
+        }
+        a {
+            color: orange;
+            text-decoration: none;
+        }
+    </style>
+    <script src="js/csv2arr.js"></script>
+
+</head>
+<body>
+
+<script type="text/javascript" src="../build/three.js"></script>
+<script type="text/javascript" src="js/controls/TrackballControls.js"></script>
+<script type="text/javascript" src="js/Detector.js"></script>
+<script type="text/javascript" src="js/libs/dat.gui.min.js"></script>
+<script type="text/javascript" src="js/jquery.js"></script>
+<script type="text/javascript" src="js/papaparse.js"></script>
+<script type="text/javascript" src="js/jschardet.js"></script>
+<script src="js/csv2arr.js"></script>
+<script type="text/javascript">
+    var camera, scene, renderer, controls;
+    var terrain_mesh, water_mesh, water_height = 0.25;
+    var terrain_detail = 4, terrain_roughness = 0.7;
+    var scar_range = 3;
+    var scar_center_x,scar_center_y;
+    var terrain_previous,terrain_next,terrain_change;
+    var terrain;
+
+    function Terrain(detail) {
+        this.size = Math.pow(2, detail) + 1;
+        this.max = this.size - 1;
+        this.map = new Float32Array(this.size * this.size);
+    }
+
+    Terrain.prototype.get = function (x, y) {
+        if (x < 0 || x > this.max || y < 0 || y > this.max) return -1;
+        if (x == this.max - 1) return this.map[x+ (this.size+1)*y];
+        return this.map[x + this.size * y];
+    };
+
+    Terrain.prototype.set = function (x, y, val) {
+        this.map[x + this.size * y] = val;
+    };
+
+    Terrain.prototype.previous = function (){
+        if (!terrain_mesh)
+        {
+            var init_geometryCy = new THREE.CylinderGeometry( 128, 128, 256, this.size-1, this.size - 1);
+            var terrain_init_material  = new THREE.MeshNormalMaterial({wireframe:true});
+            terrain_mesh = new THREE.Mesh(init_geometryCy, terrain_init_material);
+        }
+        else {
+            terrain_previous = terrain_mesh;
+        }
+    };
+
+    Terrain.prototype.next = function (){
+        terrain_next = terrain_mesh;
+    };
+
+    Terrain.prototype.generate = function (roughness) {
+        var self = this;
+
+        this.set(0, 0, self.max);
+        this.set(this.max, 0, self.max / 2);
+        this.set(this.max, this.max, 0);
+        this.set(0, this.max, self.max / 2);
+
+        divide(this.max);
+
+        function divide(size) {
+            var x, y, half = size / 2;
+            var scale = roughness * size;
+            if (half < 1) return;
+
+            for (y = half; y < self.max; y += size) {
+                for (x = half; x < self.max; x += size) {
+                    square(x, y, half, Math.random() * scale * 2 - scale);
+                }
+            }
+            for (y = 0; y <= self.max; y += half) {
+                for (x = (y + half) % size; x <= self.max; x += size) {
+                    diamond(x, y, half, Math.random() * scale * 2 - scale);
+                }
+            }
+            divide(size / 2);
+        }
+
+        function average(values) {
+            var valid = values.filter(function (val) {
+                return val !== -1;
+            });
+            var total = valid.reduce(function (sum, val) {
+                return sum + val;
+            }, 0);
+            return total / valid.length;
+        }
+
+        function square(x, y, size, offset) {
+            var ave = average([
+                self.get(x - size, y - size), // upper left
+                self.get(x + size, y - size), // upper right
+                self.get(x + size, y + size), // lower right
+                self.get(x - size, y + size) // lower left
+            ]);
+            self.set(x, y, ave + offset);
+        }
+
+        function diamond(x, y, size, offset) {
+            var ave = average([
+                self.get(x, y - size), // top
+                self.get(x + size, y), // right
+                self.get(x, y + size), // bottom
+                self.get(x - size, y) // left
+            ]);
+            self.set(x, y, ave + offset);
+        }
+    };
+
+    Terrain.prototype.getPointData = function (x,y){
+        var self = this;
+        return terrain_mesh.geometry.vertices[x*(this.size-1)+y];
+    };
+
+    Terrain.prototype.setPointData = function (x,y,a,b,c){
+        var self = this;
+        terrain_mesh.geometry.verticesNeedUpdate = true;
+        terrain_mesh.geometry.vertices[x*(this.size - 1) + y].x = a;
+        terrain_mesh.geometry.vertices[x*(this.size - 1) + y].y = b;
+        terrain_mesh.geometry.vertices[x*(this.size - 1) + y].z = c;
+        return terrain_mesh.geometry.vertices[x*(this.size-1)+y];
+    };
+
+    Terrain.prototype.printPointData = function (){
+        var self = this;
+        return terrain_mesh.geometry.vertices;
+    };
+
+    Terrain.prototype.calPointDistance = function(a){
+        var mindis = Infinity;
+
+        for (var j = 0; j <this.size; j++){
+            for (var i = 0; i<this.size -1;i++){
+                mindis = (a.x - terrain_mesh.geometry.vertices[j*(this.size - 1) + i].x)^2+(a.y - terrain_mesh.geometry.vertices[j*(this.size - 1) + i].y)^2+(a.z - terrain_mesh.geometry.vertices[j*(this.size - 1) + i].z)^2
+            }
+        }
+
+        var point_on_mesh =
+    };
+
+    Terrain.prototype.resetMesh = function(mesh){
+        scene.remove(terrain_mesh);
+        terrain_mesh = mesh;
+        scene.add(terrain_mesh);
+    };
+
+    Terrain.prototype.addMesh = function () {
+        var self = this;
+        scar_center_x = this.size  /2;
+        scar_center_y = this.size  /2;
+
+        var part_angle = 2* Math.PI/(this.size -1);
+        var geometryCy = new THREE.CylinderGeometry( 128, 128, 256, this.size-1, this.size - 1);
+        //var terrain_geometry = new THREE.PlaneGeometry(512, 512, this.size - 1, this.size - 1);
+        var min_height = Infinity;
+        var max_height = -Infinity;
+        for (var y = 0; y < this.size; y++) {
+            for (var x = 0; x < this.size-1; x++) {
+                if(Math.abs(x-scar_center_x)*Math.abs(x-scar_center_x)+Math.abs(y-scar_center_y)*Math.abs(y-scar_center_y)<scar_range*scar_range)
+                {
+                    var height_val = this.get(x, y);
+                    if (height_val < min_height) min_height = height_val;
+                    if (height_val > max_height) max_height = height_val;
+                    //if ( height_val < 0 ) height_val = 0;
+                    //if (y === 0 || y === this.size - 1 || x === 0 || x === this.size - 1) height_val = 0.0;
+//                        geometryCy.vertices[y * this.size + x - y].x += height_val/50 ;
+//                        geometryCy.vertices[y * this.size + x - y].z += height_val /50;
+                }
+            }
+        }
+
+        for (var y = 0; y < this.size; y++) {
+            for (var x = 0; x < this.size-1; x++) {
+                var sqar_dis = Math.abs(x-scar_center_x)*Math.abs(x-scar_center_x)+Math.abs(y-scar_center_y)*Math.abs(y-scar_center_y);
+                var line_dis = Math.abs(x-scar_center_x)+Math.abs(y-scar_center_y);
+                var sqar_diff = scar_range*scar_range - sqar_dis;
+                var line_diff = scar_range - line_dis;
+                if(sqar_diff>0)
+                {
+                    var height_val = this.get(x, y);
+//                            if (height_val < min_height) min_height = height_val;
+//                            if (height_val > max_height) max_height = height_val;
+                    //if ( height_val < 0 ) height_val = 0;
+                    //if (y === 0 || y === this.size - 1 || x === 0 || x === this.size - 1) height_val = 0.0;
+                    height_val -= min_height;
+                    height_val = Math.abs(height_val);
+
+                    if(sqar_diff<16 && sqar_diff>4)
+                    {
+                        geometryCy.vertices[y * this.size + x - y].x += height_val* Math.abs(Math.sin(x * part_angle))/ (4*(16 - sqar_diff));
+                        geometryCy.vertices[y * this.size + x - y].z += height_val* Math.abs(Math.cos(x * part_angle)) / (4*(16 - sqar_diff));
+                    }
+                    else if(sqar_diff<=4)
+                    {
+                        geometryCy.vertices[y * this.size + x - y].x += height_val* Math.abs(Math.sin(x * part_angle))  / (4*(28 - sqar_diff));
+                        geometryCy.vertices[y * this.size + x - y].z += height_val * Math.abs(Math.cos(x * part_angle)) / (4*(28 - sqar_diff));
+                    }
+                    else
+                    {
+                        geometryCy.vertices[y * this.size + x - y].x += height_val * Math.abs(Math.sin(x * part_angle))/ 4;
+                        geometryCy.vertices[y * this.size + x - y].z += height_val * Math.abs(Math.cos(x * part_angle)) / 4;
+                    }
+
+                }
+            }
+        }
+
+        geometryCy.computeFaceNormals();
+        geometryCy.computeVertexNormals();
+
+        scene.remove(terrain_mesh);
+
+        terrain_material  = new THREE.MeshNormalMaterial({wireframe:true});
+        terrain_mesh = new THREE.Mesh(geometryCy, terrain_material);
+        //terrain_mesh.rotateX(0.5 * Math.PI);
+        scene.add(terrain_mesh);
+
+//                var water_geometry = new THREE.BoxGeometry(516, 516, 512);
+//                var water_material = new THREE.MeshBasicMaterial({
+//                    color: 0x3366aa,
+//                    transparent: true,
+//                    opacity: 0.7
+//                });
+//                water_mesh = new THREE.Mesh(water_geometry, water_material);
+//                water_mesh.scale.z = (min_height+max_height)/(2*256);
+        //terrain_mesh.add(water_mesh);
+    };
+
+
+    function init() {
+        if (!Detector.webgl)
+            Detector.addGetWebGLMessage();
+
+        renderer = new THREE.WebGLRenderer({
+            antialias: true
+        });
+        renderer.setClearColor(0x333366, 1.0);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        scene = new THREE.Scene();
+
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+        camera.position.y = 100;
+        camera.position.z = 600;
+
+        var ambient_light = new THREE.AmbientLight(0xcccccc);
+        scene.add(ambient_light);
+
+        var gui = new dat.GUI();
+        gui.add(this, 'terrain_detail', 2, 8).name("Detail").listen().onFinishChange(function(value) {
+            generate();
+        });
+        gui.add(this, 'terrain_roughness', 0, 1).name("Roughness").onFinishChange(function(value) {
+            generate();
+        });
+        gui.add(this, 'scar_range',0,9.9).name("ScarRange").listen().onFinishChange(function (value) {
+            generate();
+        });
+        gui.add(this, 'pre_mesh').name("Redo");
+        gui.add(this, 'next_mesh').name("Undo");
+        gui.add(this, 'check_point_data').name("Read");
+        gui.add(this, 'change_point_data').name("Write");
+        gui.add(this, 'save_point_information').name("Save");
+        gui.add(this, 'read_information_from_csv').name("Load");
+        gui.add(this, "generate").name("Generate");
+
+//                gui.add(this, 'water_height', 0, 1.0).name("Water Height").onChange(function(value) {
+//                    water_mesh.scale.z = water_height;
+//                });;
+
+        window.addEventListener('resize', onWindowResize, false);
+
+        controls = new THREE.TrackballControls(camera, renderer.domElement);
+        controls.rotateSpeed = 0.4;
+        controls.noZoom = false;
+        controls.noPan = true;
+        controls.staticMoving = false;
+        controls.dynamicDampingFactor = 0.4;
+        controls.minDistance = 200;
+        controls.maxDistance = 600;
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        terrain_detail = parseInt(terrain_detail);
+        renderer.render(scene, camera);
+    }
+
+    function generate() {
+        terrain = new Terrain(parseInt(terrain_detail));
+        terrain.previous();
+        terrain.generate(terrain_roughness);
+        terrain.addMesh();
+        terrain.next();
+    };
+
+    function pre_mesh(){
+        terrain.resetMesh(terrain_previous);
+    };
+
+    function next_mesh(){
+        terrain.resetMesh(terrain_next);
+    };
+
+    function check_point_data()
+    {
+        var a = scar_center_x - scar_range;
+        var b = scar_center_x + scar_range;
+        var c = scar_center_y - scar_range;
+        var d = scar_center_y + scar_range;
+        var e = terrain.size - 1;
+        var f = terrain.size - 2;
+        var xPos = prompt("please input the position x-value, the scar range is "+ a.toFixed(0) + "," + b.toFixed(0) + ", the range is 0," + e );
+        var yPos = prompt("please input the position y-value, the scar range is "+ c.toFixed(0) + "," + d.toFixed(0) + ", the range is 0," + f );
+        if(0 <= xPos && xPos <= e){
+            if(0 <= yPos && yPos <= f)
+            {
+                var data = terrain.getPointData(parseInt(xPos),parseInt(yPos));
+                alert("the point is "+ xPos + "," + yPos +" and the data of the point is " + data.x.toFixed(3) + " , " + data.y.toFixed(3) + " , " + data.z.toFixed(3) + " .");
+            }
+            else{
+                alert("there is something wrong with your input");
+            }}
+        else{
+            alert("there is something wrong with your input");
+        }
+    };
+
+    function change_point_data()
+    {
+        var a = scar_center_x - scar_range;
+        var b = scar_center_x + scar_range;
+        var c = scar_center_y - scar_range;
+        var d = scar_center_y + scar_range;
+        var e = terrain.size - 1;
+        var f = terrain.size - 2;
+        var xPos = prompt("please input the position x-value, the scar range is "+ a.toFixed(0) + "," + b.toFixed(0) + ", the range is 0," + e );
+        var yPos = prompt("please input the position y-value, the scar range is "+ c.toFixed(0) + "," + d.toFixed(0) + ", the range is 0," + f );
+        var newX = prompt("please input the new x-value of the point:");
+        var newY = prompt("please input the new y-value of the point:");
+        var newZ = prompt("please input the new z-value of the point:");
+        if(0 <= xPos && xPos <= e)
+            if(0 <= yPos && yPos <= f)
+            {
+                terrain.previous();
+                var data = terrain.setPointData(parseInt(xPos),parseInt(yPos),parseInt(newX),parseInt(newY),parseInt(newZ));
+                //terrain.resetMesh(terrain_change);
+                scene.remove(terrain_mesh);
+                scene.add(terrain_mesh);
+                terrain.next();
+                alert("the point is "+ xPos + "," + yPos +" and the new value of the point is " + data.x.toFixed(3) + " , " + data.y.toFixed(3) + " , " + data.z.toFixed(3) + " .");
+            }
+            else{
+                alert("there is something wrong with your input");
+            }
+        else{
+            alert("there is something wrong with your input");
+        }
+    };
+
+    function save_point_information(){
+//        var w = window.open("", "save point information", "height=0,width=0,toolbar=no,menubar=no,scrollbars=no,resizable=on,location=no,status=no");
+//
+//        var pointData = terrain.printPointData();
+//        var len = pointData.length;
+//
+//        w.document.charset = "UTF-8";
+//        for (var i = 0;i<len;i++) {
+//            var col = Math.floor(i/(terrain.size - 1));
+//            var row = i%(terrain.size-1);
+//            w.document.write("Point " + col + ',' + row + ": "  + pointData[i].x.toFixed(3) + " , " + pointData[i].y.toFixed(3) + " , " + pointData[i].z.toFixed(3) + " .\n");
+//        }
+//        w.document.execCommand(" saveAs", false,  "c:\vexInfo.txt");
+//        w.close();
+
+        //var content = "data:text/csv;charset=utf-8,";
+        var content = "u,v,x,y,z\t\n";
+
+        var pointData = terrain.printPointData();
+        var len = pointData.length;
+
+        for (var i = 0;i<len;i++) {
+            var col = Math.floor(i/(terrain.size - 1));
+            var row = i%(terrain.size-1);
+            var temp = col + "," + row + ","  + pointData[i].x.toFixed(3) + "," + pointData[i].y.toFixed(3) + "," + pointData[i].z.toFixed(3) + ".\t\n";
+            content += temp;
+        }
+
+        var link = document.createElement("a");
+        var blob = new Blob([content],{type:'text/csv'});
+        link.download = "pointData.csv";
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        delete link;
+    }
+
+    function read_information_from_csv(){
+//        var f = prompt("please input the file path");
+//
+//        $(f).csv2arr(function(arr){
+//            console.log( arr );
+//            //something to do here
+//            var tblStr = "<table border='1'>";
+//            $.each( arr, function(i, line){
+//                tblStr += "<tr>";
+//                $.each( line, function(i, cell){
+//                    tblStr += "<td>"+cell+"</td>";
+//                });
+//                tblStr += "</tr>";
+//            });
+//            $("#resTbl").html( tblStr );
+//        });
+
+        var f = document.getElementById("file");
+        var file = f.files[0];
+        var reader = new FileReader();
+        //reader.readAsDataURL(file);
+        //reader.readAsArrayBuffer(file);
+        reader.readAsText(file);
+
+        reader.onload = function(){
+            console.log(reader.result);
+        }};
+
+    init();
+    generate();
+    animate();
+</script>
+
+<div id="title">
+    <input type="file" id="file" >
+</div>
+</body>
+</html>
+

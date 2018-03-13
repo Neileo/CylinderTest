@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>three.js webgl - Circle 2 Circle</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            font-family: Monospace;
+            background-color: #f0f0f0;
+            margin: 0px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+<script src="../build/three.js"></script>
+
+<script src="js/controls/DragControls.js"></script>
+<script src="js/controls/TrackballControls.js"></script>
+<script src="js/controls/TransformControls.js"></script>
+
+<script src="js/libs/stats.min.js"></script>
+
+<script>
+
+    var pi = 3.1415926;
+    var container, stats;
+    var camera, controls, scene, renderer;
+    var objects = [];
+    var cir0 = [];
+    var cir1 = [];
+    var cir0c = new THREE.Vector3();
+    var cir0n = new THREE.Vector3();
+    var cir0r;
+    var cir0u = new THREE.Vector3();
+    var cir0v = new THREE.Vector3();
+    var cir1c = new THREE.Vector3();
+    var cir1n = new THREE.Vector3();
+    var cir1r;
+    var cir1u = new THREE.Vector3();
+    var cir1v = new THREE.Vector3();
+    var normal0 = new THREE.Vector3(0,0,1);
+    var normal1 = new THREE.Vector3(0,0,1);
+
+    var geometry = new THREE.SphereGeometry( 15, 32, 32 );
+    var geometry0 = new THREE.SphereGeometry( 8, 32, 32);
+    var material1 = new THREE.MeshBasicMaterial( {color: 0xff0000} );
+    var material2 = new THREE.MeshBasicMaterial( {color: 0x00ff00} );
+    var sphere1 = new THREE.Mesh( geometry, material1 );
+    var sphere2 = new THREE.Mesh( geometry, material2 );
+//    var sphere3 = new THREE.Mesh( geometry0, material2);
+
+    init();
+    animate();
+
+    function init() {
+
+        container = document.createElement( 'div' );
+        document.body.appendChild( container );
+
+        camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 10000 );
+        camera.position.z = 1000;
+
+        controls = new THREE.TrackballControls( camera );
+        controls.rotateSpeed = 1.0;
+        controls.zoomSpeed = 1.2;
+        controls.panSpeed = 0.8;
+        controls.noZoom = false;
+        controls.noPan = false;
+        controls.staticMoving = true;
+        controls.dynamicDampingFactor = 0.3;
+
+        scene = new THREE.Scene();
+
+        scene.add( new THREE.AmbientLight( 0x505050 ) );
+
+        var light = new THREE.SpotLight( 0xffffff, 1.5 );
+        light.position.set( 0, 500, 2000 );
+        light.castShadow = true;
+
+        light.shadow = new THREE.LightShadow( new THREE.PerspectiveCamera( 50, 1, 200, 10000 ) );
+        light.shadow.bias = - 0.00022;
+
+        light.shadow.mapSize.width = 2048;
+        light.shadow.mapSize.height = 2048;
+
+        scene.add( light );
+
+        var geometry = new THREE.CircleGeometry(50,32);
+
+        for ( var i = 0; i < 2; i ++ ) {
+
+            var object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff ,side: THREE.DoubleSide} ) );
+
+            object.position.x = Math.random() * 1000 - 500;
+            object.position.y = Math.random() * 600 - 300;
+            object.position.z = Math.random() * 800 - 400;
+
+            object.rotation.x = Math.random() * 2 * Math.PI;
+            object.rotation.y = Math.random() * 2 * Math.PI;
+            object.rotation.z = Math.random() * 2 * Math.PI;
+
+//            var m = new THREE.Matrix4();
+//            m.set(
+//                1,1,1,1,
+//                2,2,2,2,
+//                3,3,4,4
+//            );
+//            object.applyMatrix(m);
+
+            //object.scale.x = Math.random() * 2 + 1;
+            //object.scale.y = Math.random() * 2 + 1;
+            //object.scale.z = Math.random() * 2 + 1;
+
+            object.castShadow = true;
+            object.receiveShadow = true;
+
+            scene.add( object );
+
+            objects.push( object );
+
+        }
+
+
+
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+        renderer.setClearColor( 0xf0f0f0 );
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.sortObjects = false;
+
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+
+        container.appendChild( renderer.domElement );
+
+        var dragControls = new THREE.DragControls( objects, camera, renderer.domElement );
+        dragControls.addEventListener( 'dragstart', function ( event ) { controls.enabled = false; hideTransorm();} );
+        dragControls.addEventListener( 'dragend', function ( event ) { controls.enabled = true; delayHideTransform();} );
+        dragControls.addEventListener( 'hoveron', function ( event ) {
+
+            transformControl.attach( event.object );
+            cancelHideTransorm();
+
+        } );
+
+        dragControls.addEventListener( 'hoveroff', function ( event ) {
+
+            delayHideTransform();
+
+        } );
+
+
+        transformControl = new THREE.TransformControls( camera, renderer.domElement );
+        transformControl.addEventListener( 'change', render );
+
+        scene.add( transformControl );
+
+        // Hiding transform situation is a little in a mess :()
+        transformControl.addEventListener( 'change', function( e ) {
+
+            cancelHideTransorm();
+
+        } );
+
+        transformControl.addEventListener( 'mouseDown', function( e ) {
+
+            cancelHideTransorm();
+
+        } );
+
+        transformControl.addEventListener( 'mouseUp', function( e ) {
+
+            delayHideTransform();
+
+        } );
+
+        transformControl.addEventListener( 'objectChange', function( e ) {
+
+            //updateSplineOutline();
+
+        } );
+
+        var hiding;
+
+        function delayHideTransform() {
+
+            cancelHideTransorm();
+            hideTransform();
+
+        }
+
+        function hideTransform() {
+
+            hiding = setTimeout( function() {
+
+                transformControl.detach( transformControl.object );
+
+            }, 2500 )
+
+        }
+
+        function cancelHideTransorm() {
+
+            if ( hiding ) clearTimeout( hiding );
+
+        }
+
+
+
+        var info = document.createElement( 'div' );
+        info.style.position = 'absolute';
+        info.style.top = '10px';
+        info.style.width = '100%';
+        info.style.textAlign = 'center';
+        info.innerHTML = '<a href="http://threejs.org" target="_blank">three.js</a> webgl - draggable cubes';
+        container.appendChild( info );
+
+        stats = new Stats();
+        container.appendChild( stats.dom );
+
+        //
+
+        window.addEventListener( 'resize', onWindowResize, false );
+
+    }
+
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    function calNormal( vec1, vec2){
+        var vec = new THREE.Vector3();
+//        vec1.normalize();
+//        vec2.normalize();
+        vec.crossVectors(vec1,vec2);
+        vec.normalize();
+        return vec;
+    }
+
+    //
+
+    function animate() {
+
+        requestAnimationFrame( animate );
+
+        render();
+        stats.update();
+
+    }
+
+    function render() {
+
+        controls.update();
+
+        var normal0 = new THREE.Vector3(0,0,1);
+        var quaternion0 = new THREE.Quaternion(objects[0].quaternion.x,objects[0].quaternion.y,objects[0].quaternion.z,objects[0].quaternion.w);
+        normal0.applyQuaternion(quaternion0);
+        normal0.normalize();
+//        normal0.add(objects[0].position);
+        cir0c = new THREE.Vector3(objects[0].position.x,objects[0].position.y,objects[0].position.z);
+        cir0n = new THREE.Vector3(normal0.x,normal0.y,normal0.z);
+        cir0r = objects[0].geometry.parameters.radius;
+        var p0 = new THREE.Vector3(objects[0].geometry.vertices[3].x,objects[0].geometry.vertices[3].y,objects[0].geometry.vertices[3].z);
+        cir0u = p0.applyQuaternion(quaternion0);
+        cir0u.normalize();
+        cir0v = calNormal(cir0n,cir0u);
+        var normal1 = new THREE.Vector3(0,0,1);
+        var quaternion1 = new THREE.Quaternion(objects[1].quaternion.x,objects[1].quaternion.y,objects[1].quaternion.z,objects[1].quaternion.w);
+        normal1.applyQuaternion(quaternion1);
+        normal1.normalize();
+//        normal1.add(objects[1].position);
+        cir1c = new THREE.Vector3(objects[1].position.x,objects[1].position.y,objects[1].position.z);
+        cir1n = new THREE.Vector3(normal1.x,normal1.y,normal1.z);
+        cir1r = objects[0].geometry.parameters.radius;
+        var p1 = new THREE.Vector3(objects[1].geometry.vertices[1].x,objects[1].geometry.vertices[1].y,objects[1].geometry.vertices[1].z);
+        cir1u = p1.applyQuaternion(quaternion1);
+        cir1u.normalize();
+        cir1v = calNormal(cir1n,cir1u);
+
+        var D = new THREE.Vector3(cir1c.x-cir0c.x,cir1c.y-cir0c.y,cir1c.z-cir0c.z);
+
+        var ansCos, gama;
+        var limit = Number.MAX_VALUE;
+        var n0v1 = cir0n.clone();
+        n0v1.multiply(cir1v);
+        var n0u1 = cir0n.clone();
+        n0u1.multiply(cir1u);
+        var n0D = cir0n.clone();
+        n0D.multiply(D);
+        var a0 = cir1r * D.dot(cir1u);
+        var a1 = cir1r * D.dot(cir1v);
+        var a2 = n0D.dot(n0D);
+        var a3 = cir1r * n0D.dot(n0u1);
+        var a4 = cir1r * n0D.dot(n0v1);
+        var a5 = cir1r * cir1r * n0u1.dot(n0u1);
+        var a6 = cir1r * cir1r * n0u1.dot(n0v1);
+        var a7 = cir1r * cir1r * n0v1.dot(n0v1);
+
+        for (var i = -Math.PI; i <= Math.PI; i += 0.001){
+            var p0 = a2 + a7 + 2 * Math.cos(i) * a3 + (a5 - a7) * Math.cos(i) * Math.cos(i);
+            var p1 = 2 * (a4 + a6 * Math.cos(i) * a6);
+            var p2 = a1 * Math.cos(i);
+            var p3 = -a0;
+            var p4 = -a6 + Math.cos(i) * a4 + 2 * Math.cos(i) * Math.cos(i) * a6;
+            var p5 = -a3 + (a7 - a5) * Math.cos(i);
+
+            var p6 = p0 * (p2 * p2 + (1 - Math.cos(i) * Math.cos(i) )* p3 * p3) + (1 - Math.cos(i) * Math.cos(i))*(2 * p1 * p2 * p3) - cir0r * cir0r *(p4 * p4 + (1 - Math.cos(i) * Math.cos(i)) * p5 * p5);
+            var p7 = 2 * p0 * p2 * p3 + p1 * (p2 * p2 + (1 - Math.cos(i) * Math.cos(i)) * p3 * p3) - cir0r * cir0r * 2 * p4 * p5;
+
+            var ans = p6 * p6 - (1 - Math.cos(i) * Math.cos(i)) * p7 * p7;
+
+//            console.log(ans);
+            ans = Math.abs(ans);
+
+
+            if ( ans < limit){
+                limit = ans;
+                ansCos = i;
+                if (p7 == 0)
+                {
+                    gama = Math.sin(i);
+                }
+                else
+                {
+                    gama = -p6/p7;
+                }
+            }
+        }
+
+        var p1 = new THREE.Vector3();
+        var ptemp11 = new THREE.Vector3(Math.cos(ansCos)*cir1r*cir1u.x,Math.cos(ansCos)*cir1r*cir1u.y,Math.cos(ansCos)*cir1r*cir1u.z);
+        var ptemp12 = new THREE.Vector3(gama*cir1r*cir1v.x,gama*cir1r*cir1v.y,gama*cir1r*cir1v.z);
+        p1.addVectors(ptemp11,ptemp12);
+        p1.add(cir1c);
+
+        var p2 = new THREE.Vector3();
+        var ptemp21 = new THREE.Vector3(Math.cos(ansCos)*cir1r*cir1u.x*(-1),Math.cos(ansCos)*cir1r*(-1)*cir1u.y,Math.cos(ansCos)*(-1)*cir1r*cir1u.z);
+        var ptemp22 = new THREE.Vector3(gama*cir1r*cir1v.x,gama*cir1r*cir1v.y,gama*cir1r*cir1v.z);
+        p2.addVectors(ptemp21,ptemp22);
+        p2.add(cir1c);
+
+        var p3 = new THREE.Vector3();
+        var ptemp31 = new THREE.Vector3(Math.cos(ansCos)*cir1r*cir1u.x*(-1),Math.cos(ansCos)*cir1r*(-1)*cir1u.y,Math.cos(ansCos)*(-1)*cir1r*cir1u.z);
+        var ptemp32 = new THREE.Vector3(gama*cir1r*(-1)*cir1v.x,gama*cir1r*(-1)*cir1v.y,gama*cir1r*(-1)*cir1v.z);
+        p3.addVectors(ptemp31,ptemp32);
+        p3.add(cir1c);
+
+        var p4 = new THREE.Vector3();
+        var ptemp41 = new THREE.Vector3(Math.cos(ansCos)*cir1r*cir1u.x,Math.cos(ansCos)*cir1r*cir1u.y,Math.cos(ansCos)*cir1r*cir1u.z);
+        var ptemp42 = new THREE.Vector3(gama*cir1r*(-1)*cir1v.x,gama*cir1r*(-1)*cir1v.y,gama*cir1r*(-1)*cir1v.z);
+        p4.addVectors(ptemp41,ptemp42);
+        p4.add(cir1c);
+
+        var delta1 = new THREE.Vector3();
+        delta1.addVectors(ptemp11,ptemp12);
+        delta1.add(D);
+
+        var delta2 = new THREE.Vector3();
+        delta2.addVectors(ptemp21,ptemp22);
+        delta2.add(D);
+
+        var delta3 = new THREE.Vector3();
+        delta3.addVectors(ptemp31,ptemp32);
+        delta3.add(D);
+
+        var delta4 = new THREE.Vector3();
+        delta4.addVectors(ptemp41,ptemp42);
+        delta4.add(D);
+
+        var qmctemp1 = delta1.dot(cir0n);
+        var qmc1 = new THREE.Vector3(cir0n.x*qmctemp1*(-1),cir0n.y*qmctemp1*(-1),cir0n.z*qmctemp1*(-1));
+        qmc1.add(delta1);
+
+        var qmctemp2 = delta2.dot(cir0n);
+        var qmc2 = new THREE.Vector3(cir0n.x*qmctemp2*(-1),cir0n.y*qmctemp2*(-1),cir0n.z*qmctemp2*(-1));
+        qmc2.add(delta2);
+
+        var qmctemp3 = delta3.dot(cir0n);
+        var qmc3 = new THREE.Vector3(cir0n.x*qmctemp3*(-1),cir0n.y*qmctemp3*(-1),cir0n.z*qmctemp3*(-1));
+        qmc3.add(delta3);
+
+        var qmctemp4 = delta4.dot(cir0n);
+        var qmc4 = new THREE.Vector3(cir0n.x*qmctemp4*(-1),cir0n.y*qmctemp4*(-1),cir0n.z*qmctemp4*(-1));
+        qmc4.add(delta4);
+
+        var Ktemp1 = qmc1.dot(qmc1);
+        Ktemp1 = 1/Math.sqrt(Ktemp1);
+        var K1 = new THREE.Vector3(qmc1.x*Ktemp1*cir0r,qmc1.y*Ktemp1*cir0r,qmc1.z*Ktemp1*cir0r);
+        K1.add(cir0c);
+
+        var Ktemp2 = qmc2.dot(qmc2);
+        Ktemp2 = 1/Math.sqrt(Ktemp2);
+        var K2= new THREE.Vector3(qmc2.x*Ktemp2*cir0r,qmc2.y*Ktemp2*cir0r,qmc2.z*Ktemp2*cir0r);
+        K2.add(cir0c);
+
+        var Ktemp3 = qmc3.dot(qmc3);
+        Ktemp3 = 1/Math.sqrt(Ktemp3);
+        var K3 = new THREE.Vector3(qmc3.x*Ktemp3*cir0r,qmc3.y*Ktemp3*cir0r,qmc3.z*Ktemp3*cir0r);
+        K3.add(cir0c);
+
+        var Ktemp4 = qmc4.dot(qmc4);
+        Ktemp4 = 1/Math.sqrt(Ktemp4);
+        var K4= new THREE.Vector3(qmc4.x*Ktemp4*cir0r,qmc4.y*Ktemp4*cir0r,qmc4.z*Ktemp4*cir0r);
+        K4.add(cir0c);
+
+        var tempdis1 = new THREE.Vector3(p1.x-K1.x,p1.y-K1.y,p1.z-K1.z);
+        var tempdis2 = new THREE.Vector3(p2.x-K2.x,p2.y-K2.y,p2.z-K2.z);
+        var tempdis3 = new THREE.Vector3(p3.x-K3.x,p3.y-K3.y,p3.z-K3.z);
+        var tempdis4 = new THREE.Vector3(p4.x-K4.x,p4.y-K4.y,p4.z-K4.z);
+        var dis1 = tempdis1.x*tempdis1.x+tempdis1.y*tempdis1.y+tempdis1.z*tempdis1.z;
+        var dis2 = tempdis2.x*tempdis2.x+tempdis2.y*tempdis2.y+tempdis2.z*tempdis2.z;
+        var dis3 = tempdis3.x*tempdis3.x+tempdis3.y*tempdis3.y+tempdis3.z*tempdis3.z;
+        var dis4 = tempdis4.x*tempdis4.x+tempdis4.y*tempdis4.y+tempdis4.z*tempdis4.z;
+
+        if (dis1>dis2)
+        {
+            var p = new THREE.Vector3(p2.x,p2.y,p2.z);
+            var K = new THREE.Vector3(K2.x,K2.y,K2.z);
+            var dis = (p.x-K.x)*(p.x-K.x)+(p.y-K.y)*(p.y-K.y)+(p.z-K.z)*(p.z-K.z);
+        }
+        else
+        {
+            var p = new THREE.Vector3(p1.x,p1.y,p1.z);
+            var K = new THREE.Vector3(K1.x,K1.y,K1.z);
+            var dis = (p.x-K.x)*(p.x-K.x)+(p.y-K.y)*(p.y-K.y)+(p.z-K.z)*(p.z-K.z);
+        }
+        if ((dis)>(dis3))
+        {
+            var p = new THREE.Vector3(p3.x,p3.y,p3.z);
+            var K = new THREE.Vector3(K3.x,K3.y,K3.z);
+            var dis = (p.x-K.x)*(p.x-K.x)+(p.y-K.y)*(p.y-K.y)+(p.z-K.z)*(p.z-K.z);
+        }
+        if ((dis)>(dis4))
+        {
+            var p = new THREE.Vector3(p4.x,p4.y,p4.z);
+            var K = new THREE.Vector3(K4.x,K4.y,K4.z);
+            var dis = (p.x-K.x)*(p.x-K.x)+(p.y-K.y)*(p.y-K.y)+(p.z-K.z)*(p.z-K.z);
+        };
+//        var tempPosition = new THREE.Vector3(cir1v.x * cir1r, cir1v.y * cir1r, cir1v.z * cir1r);
+//        tempPosition.add(cir1c);
+//        sphere3.position.x = tempPosition.x;
+//        sphere3.position.y = tempPosition.y;
+//        sphere3.position.z = tempPosition.z;
+//        scene.add( sphere3 );
+
+        var int1 = 0.9;
+        var int2 = 0.3;
+        var int3 = int1/int2;
+
+
+        sphere1.position.x = p.x;
+        sphere1.position.y = p.y;
+        sphere1.position.z = p.z;
+        scene.add( sphere1 );
+
+
+        sphere2.position.x = K.x;
+        sphere2.position.y = K.y;
+        sphere2.position.z = K.z;
+        scene.add( sphere2 );
+        renderer.render( scene, camera );
+
+    }
+
+</script>
+
+</body>
+</html>
