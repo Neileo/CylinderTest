@@ -42,9 +42,11 @@
 
 <script type = "text/javascript">
     var camera, scene, renderer, controls;
-    var terrain_mesh, water_mesh, water_height = 0.25;
+    var terrain;
+    var terrain_info, water_mesh, water_height = 0.25;
     var terrain_detail = 6, terrain_roughness = 0.7;
     var cylinder_slices = 10;
+    var cylinder_mesh;
     function Terrain(detail) {
         this.size = Math.pow(2, detail) + 1;
         this.max = this.size - 1;
@@ -108,7 +110,10 @@
             self.set(x, y, ave + offset);
         }
     };
-    Terrain.prototype.addMesh = function () { //将信息制成geometry，显示出来
+    function Bearing(slices){
+
+    };
+    Bearing.prototype.addMesh = function (scar) { //将信息制成geometry，显示出来
         var self = this;
         //var terrain_geometry = new THREE.PlaneGeometry(512, 512, this.size - 1, this.size - 1);//(长度，宽度，长段数，宽段数)
         var cylinder_geometry = new THREE.CylinderGeometry(128, 128, cylinder_slices, cylinder_slices);
@@ -121,16 +126,16 @@
                 if ( height_val > max_height ) max_height = height_val;
                 //if ( height_val < 0 ) height_val = 0;
                 if (y === 0 || y === this.size - 1 || x === 0 || x === this.size - 1) height_val = 0.0;
-                terrain_geometry.vertices[y * this.size + x].z = height_val;
+                cylinder_geometry.vertices[y * this.size + x].z = height_val;
             }
         }
-        terrain_geometry.computeFaceNormals();
-        terrain_geometry.computeVertexNormals();
-        scene.remove(terrain_mesh);
+        cylinder_geometry.computeFaceNormals();
+        cylinder_geometry.computeVertexNormals();
+        scene.remove(cylinder_mesh);
         terrain_material  = new THREE.MeshNormalMaterial();
-        terrain_mesh = new THREE.Mesh(terrain_geometry, terrain_material);
-        terrain_mesh.rotation.x = -Math.PI / 2.0;
-        scene.add(terrain_mesh);
+        cylinder_mesh = new THREE.Mesh(cylinder_geometry, terrain_material);
+        cylinder_mesh.rotation.x = -Math.PI / 2.0;
+        scene.add(cylinder_mesh);
 
     };
 
@@ -171,6 +176,8 @@
         controls.minDistance = 300;
         controls.maxDistance = 600;
 
+        terrain = new Terrain(parseInt(terrain_detail));
+        terrain.generate(terrain_roughness);
     }
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -184,11 +191,11 @@
         renderer.render(scene, camera);
     }
     function generate() {
-        var terrain = new Terrain(parseInt(terrain_detail));
-        terrain.generate(terrain_roughness);
+        var bearing = new Bearing(cylinder_slices);
+        bearing.addMesh(terrain);
     };
     function generateCylinder(){
-        terrain.addMesh();
+
     };
     init();
     generate();
