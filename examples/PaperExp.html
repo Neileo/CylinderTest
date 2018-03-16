@@ -44,13 +44,15 @@
     var camera, scene, renderer, controls;
     var terrain;
     var terrain_info, water_mesh, water_height = 0.25;
-    var terrain_detail = 6, terrain_roughness = 0.7;
-    var cylinder_slices = 10;
+    var terrain_detail = 5, terrain_roughness = 0.9;
+    var cylinder_slices = 5;
     var cylinder_mesh;
-    function Terrain(detail) {
+    function Terrain(detail,slices) {
         this.size = Math.pow(2, detail) + 1;
         this.max = this.size - 1;
         this.map = new Float32Array(this.size * this.size);
+        this.cut = slices;
+        this.mtl = new Float32Array(this.cut * this.cut);
     }
     Terrain.prototype.get = function (x, y) {
         if (x < 0 || x > this.max || y < 0 || y > this.max) return -1;
@@ -109,14 +111,31 @@
             ]);
             self.set(x, y, ave + offset);
         }
-    };
-    function Bearing(slices){
 
+
+    };
+
+    Terrain.prototype.cutMap = function(cylinder_slices){
+        var self = this;
+        if (cylinder_slices > this.size)
+            this.cut = this.size;
+        else
+            this.cut = cylinder_slices;
+        this.mtl = new Float32Array(this.cut * this.cut);
+        for (var countx = 0; countx < this.cut; countx++)
+            for (var county = 0; county < this.cut; county++)
+            {
+                this.mtl[countx + this.cut * county] = self.get(countx,county);
+            }
+    };
+
+    function Bearing(slices){
+        this.part = slices;
     };
     Bearing.prototype.addMesh = function (scar) { //将信息制成geometry，显示出来
         var self = this;
         //var terrain_geometry = new THREE.PlaneGeometry(512, 512, this.size - 1, this.size - 1);//(长度，宽度，长段数，宽段数)
-        var cylinder_geometry = new THREE.CylinderGeometry(128, 128, cylinder_slices, cylinder_slices);
+        var cylinder_geometry = new THREE.CylinderGeometry(128, 128, 128 * 3, this.part, this.part);
         var min_height = Infinity;
         var max_height = -Infinity;
         for (var y = 0; y < this.size; y++) {
@@ -132,7 +151,7 @@
         cylinder_geometry.computeFaceNormals();
         cylinder_geometry.computeVertexNormals();
         scene.remove(cylinder_mesh);
-        terrain_material  = new THREE.MeshNormalMaterial();
+        terrain_material  = new THREE.MeshNormalMaterial({wireframe:true});
         cylinder_mesh = new THREE.Mesh(cylinder_geometry, terrain_material);
         cylinder_mesh.rotation.x = -Math.PI / 2.0;
         scene.add(cylinder_mesh);
@@ -155,7 +174,7 @@
         var ambient_light = new THREE.AmbientLight(0xcccccc);
         scene.add(ambient_light);
         var gui = new dat.GUI();
-        gui.add(this, 'cylinder_slices', 10, 32).name("slices").listen().onFinishChange(function(value) {
+        gui.add(this, 'cylinder_slices', 32, 64).name("slices").listen().onFinishChange(function(value) {
             generate();
         });
 //        gui.add(this, 'cylinder_height_slices', 6, 12).name("height").onFinishChange(function(value) {
@@ -173,10 +192,10 @@
         controls.noPan = true;
         controls.staticMoving = false;
         controls.dynamicDampingFactor = 0.4;
-        controls.minDistance = 300;
-        controls.maxDistance = 600;
+        controls.minDistance = 400;
+        controls.maxDistance = 800;
 
-        terrain = new Terrain(parseInt(terrain_detail));
+        terrain = new Terrain(parseInt(terrain_detail),cylinder_slices);
         terrain.generate(terrain_roughness);
     }
     function onWindowResize() {
@@ -191,6 +210,7 @@
         renderer.render(scene, camera);
     }
     function generate() {
+        terrain.cutMap(parseInt(cylinder_slices/6));
         var bearing = new Bearing(cylinder_slices);
         bearing.addMesh(terrain);
     };
