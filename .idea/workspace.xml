@@ -25,8 +25,8 @@
       <file leaf-file-name="PaperExp.html" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/examples/PaperExp.html">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="3363">
-              <caret line="212" column="49" lean-forward="false" selection-start-line="212" selection-start-column="49" selection-end-line="212" selection-end-column="49" />
+            <state relative-caret-position="639">
+              <caret line="143" column="36" lean-forward="true" selection-start-line="143" selection-start-column="36" selection-end-line="143" selection-end-column="36" />
               <folding />
             </state>
           </provider>
@@ -35,7 +35,7 @@
       <file leaf-file-name="3D-SCAR.html" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/examples/3D-SCAR.html">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4769">
+            <state relative-caret-position="4518">
               <caret line="251" column="73" lean-forward="false" selection-start-line="251" selection-start-column="57" selection-end-line="251" selection-end-column="73" />
               <folding />
             </state>
@@ -94,11 +94,16 @@
           <expand>
             <path>
               <item name="BearingTestProject" type="b2602c69:ProjectViewProjectNode" />
-              <item name="CylinderTest" type="462c0819:PsiDirectoryNode" />
+              <item name="BearingTestProject" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="BearingTestProject" type="b2602c69:ProjectViewProjectNode" />
-              <item name="CylinderTest" type="462c0819:PsiDirectoryNode" />
+              <item name="BearingTestProject" type="462c0819:PsiDirectoryNode" />
+              <item name="build" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="BearingTestProject" type="b2602c69:ProjectViewProjectNode" />
+              <item name="BearingTestProject" type="462c0819:PsiDirectoryNode" />
               <item name="examples" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
@@ -146,16 +151,18 @@
       <workItem from="1520949734881" duration="36000" />
       <workItem from="1521127374127" duration="4241000" />
       <workItem from="1521131742922" duration="12000" />
+      <workItem from="1521188453291" duration="2600000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="12945000" />
+    <option name="totallyTimeSpent" value="15545000" />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-8" y="-8" width="1936" height="1056" extended-state="6" />
+    <frame x="-8" y="-8" width="1616" height="876" extended-state="6" />
+    <editor active="true" />
     <layout>
-      <window_info id="Project" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.11927083" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.11875" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Docker" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="false" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
@@ -185,6 +192,22 @@
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/examples/PaperExp.html">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/examples/3D-SCAR.html">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="4518">
+          <caret line="251" column="73" lean-forward="false" selection-start-line="251" selection-start-column="57" selection-end-line="251" selection-end-column="73" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/examples/PaperExp.html">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
@@ -335,16 +358,24 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/examples/3D-SCAR.html">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4769">
+        <state relative-caret-position="4518">
           <caret line="251" column="73" lean-forward="false" selection-start-line="251" selection-start-column="57" selection-end-line="251" selection-end-column="73" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/build/three.js">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="245">
+          <caret line="28180" column="8" lean-forward="false" selection-start-line="28180" selection-start-column="8" selection-end-line="28180" selection-end-column="8" />
           <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/examples/PaperExp.html">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3363">
-          <caret line="212" column="49" lean-forward="false" selection-start-line="212" selection-start-column="49" selection-end-line="212" selection-end-column="49" />
+        <state relative-caret-position="639">
+          <caret line="143" column="36" lean-forward="true" selection-start-line="143" selection-start-column="36" selection-end-line="143" selection-end-column="36" />
           <folding />
         </state>
       </provider>

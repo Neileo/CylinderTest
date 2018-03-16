@@ -130,7 +130,7 @@
     };
 
     function Bearing(slices){
-        this.part = slices;
+        this.part = parseInt(slices);
     };
     Bearing.prototype.addMesh = function (scar) { //将信息制成geometry，显示出来
         var self = this;
@@ -138,8 +138,8 @@
         var cylinder_geometry = new THREE.CylinderGeometry(128, 128, 128 * 3, this.part, this.part);
         var min_height = Infinity;
         var max_height = -Infinity;
-        for (var y = 0; y < this.size; y++) {
-            for (var x = 0; x < this.size; x++) {
+        for (var y = 0; y < this.part; y++) {
+            for (var x = 0; x < this.part; x++) {
                 var height_val = this.get(x, y);
                 if ( height_val < min_height ) min_height = height_val;
                 if ( height_val > max_height ) max_height = height_val;
