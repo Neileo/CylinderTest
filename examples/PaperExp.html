@@ -43,10 +43,15 @@
 <script type = "text/javascript">
     var camera, scene, renderer, controls;
     var terrain;
+    var bearing1,bearing2;
     var terrain_info, water_mesh, water_height = 0.25;
     var terrain_detail = 5, terrain_roughness = 0.9;
     var cylinder_slices = 5;
-    var cylinder_mesh;
+    var stepAngle = 0;
+    var geometry = new THREE.SphereGeometry( 7, 32, 32 );
+    var material1 = new THREE.MeshBasicMaterial( {color: 0xff0000} );
+    var sphere1 = new THREE.Mesh( geometry, material1 );
+    var sphere2 = new THREE.Mesh( geometry, material1 );
     function Terrain(detail,slices) {
         this.size = Math.pow(2, detail) + 1;
         this.max = this.size - 1;
@@ -58,6 +63,13 @@
         if (x < 0 || x > this.max || y < 0 || y > this.max) return -1;
         return this.map[x + this.size * y];
     };
+    Terrain.prototype.mtlget = function (x,y) {
+        var li = this.cut;
+        if (x < 0 || x > li || y < 0 || y > li) return 0;
+        return this.mtl[x + this.cut * y];
+    };
+
+
     Terrain.prototype.set = function (x, y, val) {
         this.map[x + this.size * y] = val;
     };
@@ -121,41 +133,149 @@
             this.cut = this.size;
         else
             this.cut = cylinder_slices;
-        this.mtl = new Float32Array(this.cut * this.cut);
+        var cut2= this.cut * this.cut;
+        this.mtl = new Float32Array(cut2);
         for (var countx = 0; countx < this.cut; countx++)
             for (var county = 0; county < this.cut; county++)
             {
                 this.mtl[countx + this.cut * county] = self.get(countx,county);
             }
+
+        var min_val = Infinity;
+        var max_val = -Infinity;
+
+        for (var countlim = 0; countlim < cut2; countlim++)
+        {
+            var temp = this.mtl[countlim];
+            if (temp < min_val) min_val = temp;
+            if (temp > max_val) max_val = temp;
+        }
+        for (var countval = 0; countval < cut2; countval++)
+        {
+            this.mtl[countval] -= min_val;
+            this.mtl[countval] /= (max_val * 0.05);
+        }
     };
 
     function Bearing(slices){
         this.part = parseInt(slices);
+        this.cygeo = new THREE.CylinderGeometry(128, 128, 128 * 3, this.part, this.part);
+        this.mesh = new THREE.Mesh();
     };
+
+    Bearing.prototype.get = function(x,y){
+        if (x < 0 || x > this.part || y < 0 || y > this.part) return -1;
+        return this.cygeo.vertices[x + this.part * y];
+    };
+    Bearing.prototype.set = function(x,y,val){
+        var u = x / this.part;
+        var theta = u * Math.PI * 2;
+
+        var sinTheta = Math.sin( theta );
+        var cosTheta = Math.cos( theta );
+
+        this.cygeo.vertices[x + y * this.part].x -= val * sinTheta;
+        this.cygeo.vertices[x + y * this.part].z -= val * cosTheta;
+    };
+
+
     Bearing.prototype.addMesh = function (scar) { //将信息制成geometry，显示出来
         var self = this;
-        //var terrain_geometry = new THREE.PlaneGeometry(512, 512, this.size - 1, this.size - 1);//(长度，宽度，长段数，宽段数)
-        var cylinder_geometry = new THREE.CylinderGeometry(128, 128, 128 * 3, this.part, this.part);
         var min_height = Infinity;
         var max_height = -Infinity;
         for (var y = 0; y < this.part; y++) {
             for (var x = 0; x < this.part; x++) {
-                var height_val = this.get(x, y);
-                if ( height_val < min_height ) min_height = height_val;
-                if ( height_val > max_height ) max_height = height_val;
-                //if ( height_val < 0 ) height_val = 0;
-                if (y === 0 || y === this.size - 1 || x === 0 || x === this.size - 1) height_val = 0.0;
-                cylinder_geometry.vertices[y * this.size + x].z = height_val;
+                var limx = parseInt(x - this.part / 3);
+                var limy = parseInt(y - this.part / 3);
+                if ((limx > 0) && (limy > 0) && (limx < scar.cut) && (limy < scar.cut))
+                {
+                    var height_val = scar.mtlget(limx, limy);
+                    if ( height_val < min_height ) min_height = height_val;
+                    if ( height_val > max_height ) max_height = height_val;
+                    //if ( height_val < 0 ) height_val = 0;
+                    if (y === 0 || y === this.size - 1 || x === 0 || x === this.size - 1) height_val = 0.0;
+                    this.set(y,x,height_val);
+                }
             }
         }
-        cylinder_geometry.computeFaceNormals();
-        cylinder_geometry.computeVertexNormals();
-        scene.remove(cylinder_mesh);
+        this.cygeo.computeFaceNormals();
+        this.cygeo.computeVertexNormals();
+        //scene.remove(this.mesh);
+        //{wireframe:true}
         terrain_material  = new THREE.MeshNormalMaterial({wireframe:true});
-        cylinder_mesh = new THREE.Mesh(cylinder_geometry, terrain_material);
-        cylinder_mesh.rotation.x = -Math.PI / 2.0;
-        scene.add(cylinder_mesh);
+        this.mesh = new THREE.Mesh(this.cygeo, terrain_material);
+        //this.mesh.rotation.x = -Math.PI / 2.0;
+        scene.add(this.mesh);
+    };
 
+    Bearing.prototype.removeMesh = function () {
+        scene.remove(this.mesh);
+    };
+
+    function initMove(geo1, geo2) {
+        geo1.position.x += 256;
+        geo1.position.y += 0;
+        geo1.position.z += 20;
+
+    };
+
+    function move(geo){
+        var len = geo.cygeo.vertices.length;
+        var axis = new THREE.Vector3();
+        var angle = Math.PI / 360000;
+        axis.x = geo.cygeo.vertices[len - 1].x - geo.cygeo.vertices[len - 2].x;
+        axis.y = geo.cygeo.vertices[len - 1].y - geo.cygeo.vertices[len - 2].y;
+        axis.z = geo.cygeo.vertices[len - 1].z - geo.cygeo.vertices[len - 2].z;
+        geo.mesh.rotateOnAxis(axis,angle);
+
+        var step = Math.PI / 24;
+        stepAngle += step;
+        geo.mesh.position.x += Math.sin(stepAngle)/4;
+        geo.mesh.rotateX(Math.cos(stepAngle)/400);
+        console.log('move finish.');
+    };
+
+    function bruteForceBasic(geo1,geo2){
+        var calgeo1 = geo1.mesh.geometry.clone();
+        var limV1 = calgeo1.vertices.length;
+        var positionV = new THREE.Vector3(geo1.mesh.position.x,geo1.mesh.position.y,geo1.mesh.position.z);
+        var rotationV = new THREE.Euler(geo1.mesh.rotation.x,geo1.mesh.rotation.y,geo1.mesh.rotation.z,'XYZ');
+        for (var countv = 0; countv < limV1; countv ++ ) {
+
+            calgeo1.vertices[countv].applyEuler(rotationV);
+            calgeo1.vertices[countv].add(positionV);
+        };
+        console.log('change finish.');
+
+        var calgeo2 = geo2.mesh.geometry.clone();
+        var limV2 = calgeo2.vertices.length;
+
+        var ans = [];
+        ans[0] = 0;
+        ans[1] = 0;
+        ans[2] = Infinity;
+        for (var countg1 = 0; countg1 < limV1; countg1 ++)
+            for (var countg2 = 0; countg2 < limV1; countg2 ++)
+            {
+                var dis = (calgeo1.vertices[countg1].x - calgeo2.vertices[countg2].x)*(calgeo1.vertices[countg1].x - calgeo2.vertices[countg2].x)+(calgeo1.vertices[countg1].y - calgeo2.vertices[countg2].y)*(calgeo1.vertices[countg1].y - calgeo2.vertices[countg2].y)+(calgeo1.vertices[countg1].z - calgeo2.vertices[countg2].z)*(calgeo1.vertices[countg1].z - calgeo2.vertices[countg2].z);
+                if (dis < ans[2])
+                {
+                    ans[0] = countg1;
+                    ans[1] = countg2;
+                    ans[2] = dis;
+                }
+            }
+
+
+
+        sphere1.position.x = calgeo1.vertices[ans[0]].x;
+        sphere1.position.y = calgeo1.vertices[ans[0]].y;
+        sphere1.position.z = calgeo1.vertices[ans[0]].z;
+        sphere2.position.x = calgeo2.vertices[ans[1]].x;
+        sphere2.position.y = calgeo2.vertices[ans[1]].y;
+        sphere2.position.z = calgeo2.vertices[ans[1]].z;
+        scene.add(sphere1);
+        scene.add(sphere2);
     };
 
     function init() {
@@ -168,19 +288,19 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1200);
         camera.position.y = 100;
-        camera.position.z = 600;
+        camera.position.z = 1200;
         var ambient_light = new THREE.AmbientLight(0xcccccc);
         scene.add(ambient_light);
         var gui = new dat.GUI();
         gui.add(this, 'cylinder_slices', 32, 64).name("slices").listen().onFinishChange(function(value) {
-            generate();
+            generateCylinder();
         });
 //        gui.add(this, 'cylinder_height_slices', 6, 12).name("height").onFinishChange(function(value) {
 //            generate();
 //        });
-        gui.add(this, "generate").name("Generate");
+        gui.add(this, "generateCylinder").name("Generate");
 //        gui.add(this, 'water_height', 0, 1.0).name("Water Height").onChange(function(value) {
 //            water_mesh.scale.z = water_height;
 //        });
@@ -197,6 +317,7 @@
 
         terrain = new Terrain(parseInt(terrain_detail),cylinder_slices);
         terrain.generate(terrain_roughness);
+        terrain.cutMap(parseInt(cylinder_slices/6));
     }
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -206,16 +327,33 @@
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
+
+        if(bearing1){
+            move(bearing1);
+            bruteForceBasic(bearing1,bearing2);
+        }
+
         terrain_detail = parseInt(terrain_detail);
         renderer.render(scene, camera);
+
     }
     function generate() {
         terrain.cutMap(parseInt(cylinder_slices/6));
-        var bearing = new Bearing(cylinder_slices);
-        bearing.addMesh(terrain);
+        bearing1 = new Bearing(cylinder_slices);
+        bearing2 = new Bearing(cylinder_slices);
+        bearing1.addMesh(terrain);
+        bearing2.addMesh(terrain);
+        initMove(bearing1.mesh,bearing2.mesh);
     };
     function generateCylinder(){
-
+        terrain.cutMap(parseInt(cylinder_slices/6));
+        bearing1.removeMesh();
+        bearing2.removeMesh();
+        bearing1 = new Bearing(cylinder_slices);
+        bearing2 = new Bearing(cylinder_slices);
+        bearing1.addMesh(terrain);
+        bearing2.addMesh(terrain);
+        initMove(bearing1.mesh,bearing2.mesh);
     };
     init();
     generate();
