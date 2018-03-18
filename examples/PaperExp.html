@@ -43,6 +43,7 @@
 
 <script type = "text/javascript">
     var camera, scene, renderer, controls;
+    var runningC = 0;
     var terrain;
     var stats;
     var bearing1,bearing2;
@@ -51,10 +52,11 @@
     var caled1 = [];
     var caled2 = [];
     var myAns = [];
+    var time = [];
     var limDisMotion = Infinity;
     var terrain_info, water_mesh, water_height = 0.25;
     var terrain_detail = 5, terrain_roughness = 0.9;
-    var cylinder_slices = 16;
+    var cylinder_slices = 32;
     var stepAngle = 0;
     var geometry = new THREE.SphereGeometry( 7, 32, 32 );
     var material1 = new THREE.MeshBasicMaterial( {color: 0xff0000} );
@@ -658,7 +660,22 @@
         if(1) {
             move(bearing1);
             bearingVerticesTrans(bearing1, bearing2);
+            var clock = new THREE.Clock();
+            clock.start();
             bruteForceBasic(bearing1, bearing2);
+            var Cutime = clock.getDelta();
+            if (runningC > 10)
+                time.push(Cutime);
+            if (time.length === 40)
+            {
+                var temp = 0;
+                for (var i = 0; i < 40; i++)
+                {
+                    temp += time[i];
+                }
+                alert(temp/40);
+            }
+            runningC ++;
         }
         if(0){
             move(bearing1);
@@ -666,7 +683,10 @@
             caled2 = [];
             caled1 = [];
             limDisMotion = Infinity;
+
+
             bruteForceMotion(grid1,grid2,myAns,caled1,caled2,limDisMotion);
+
             scene.remove(sphere1);
             scene.remove(sphere2);
             sphere1.position.x = grid1.block[myAns[0]][myAns[1]][0].x;
@@ -677,6 +697,7 @@
             sphere2.position.z = grid2.block[myAns[2]][myAns[3]][0].z;
             scene.add(sphere1);
             scene.add(sphere2);
+
         }
 
         terrain_detail = parseInt(terrain_detail);
