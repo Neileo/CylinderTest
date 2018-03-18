@@ -39,14 +39,22 @@
 <script type="text/javascript" src="js/controls/TrackballControls.js"></script>
 <script type="text/javascript" src="js/Detector.js"></script>
 <script type="text/javascript" src="js/libs/dat.gui.min.js"></script>
+<script type="text/javascript" src="js/libs/stats.min.js"></script>
 
 <script type = "text/javascript">
     var camera, scene, renderer, controls;
     var terrain;
+    var stats;
     var bearing1,bearing2;
+    var calgeo1,calgeo2;
+    var grid1,grid2;
+    var caled1 = [];
+    var caled2 = [];
+    var myAns = [];
+    var limDisMotion = Infinity;
     var terrain_info, water_mesh, water_height = 0.25;
     var terrain_detail = 5, terrain_roughness = 0.9;
-    var cylinder_slices = 5;
+    var cylinder_slices = 16;
     var stepAngle = 0;
     var geometry = new THREE.SphereGeometry( 7, 32, 32 );
     var material1 = new THREE.MeshBasicMaterial( {color: 0xff0000} );
@@ -187,7 +195,7 @@
             for (var x = 0; x < this.part; x++) {
                 var limx = parseInt(x - this.part / 3);
                 var limy = parseInt(y - this.part / 3);
-                if ((limx > 0) && (limy > 0) && (limx < scar.cut) && (limy < scar.cut))
+                if ((limx >= 0) && (limy >= 0) && (limx < scar.cut) && (limy < scar.cut))
                 {
                     var height_val = scar.mtlget(limx, limy);
                     if ( height_val < min_height ) min_height = height_val;
@@ -212,17 +220,103 @@
         scene.remove(this.mesh);
     };
 
+    function Grid(slices){
+        this.block = [];
+        this.gridSlice = parseInt(parseInt(slices)/5);
+//        this.block.vertices = new Float32Array((this.gridSlice + 1)*(this.gridSlice + 1));
+//        this.block.index = [];
+//        this.block.edge = [];
+    }
+
+    Grid.prototype.build = function(geo)
+    {
+        var len = geo.cygeo.vertices.length;
+        var col,row;
+
+        for (var i = 0; i < 36; i++){
+            row = parseInt(i/6);
+            col = i % 6;
+            var blockTemp = [];
+            var gridHeight = this.gridSlice;
+            var gridLength = this.gridSlice;;
+
+            if(i % 6 == 5)
+                if (i > 29) {
+                    gridHeight = geo.part % 5;
+                    gridLength = geo.part % 5;
+                }
+                else
+                    gridLength = geo.part % 5;
+            if((i > 29) && (i % 6 != 5))
+                gridHeight = geo.part % 5;
+
+            for (var j = row * this.gridSlice; j <= ((row * this.gridSlice) + gridHeight); j++ )
+                for (var k = col * this.gridSlice; k <= ((col * this.gridSlice) + gridLength); k++)
+                {
+                    var temp = [];
+                    if((j * geo.part + k) % geo.part == 0)
+                    {
+                        temp[0] = geo.mesh.geometry.vertices[j * geo.part];
+                        temp[1] = j * geo.part;}
+                    else
+                    {
+                        temp[0] = geo.mesh.geometry.vertices[j * geo.part + k];
+                        temp[1] = j * geo.part + k;
+                    }
+                    temp[2] = 0;
+                    if (j == row * this.gridSlice) // 上边界
+                        temp[2] = 1;
+                    if (j == (row * this.gridSlice + gridHeight)) // 下边界
+                        temp[2] = 2;
+                    if (k == (col * this.gridSlice)) // 左边界
+                        temp[2] = 3;
+                    if (k == (col * this.gridSlice + gridLength)) // 右边界
+                        temp[2] = 4;
+                    if ((j == (row * this.gridSlice)) && (k == (col * this.gridSlice)) ) //Left Top
+                        temp[2] = 5;
+                    if ((j == (row * this.gridSlice + gridHeight)) && (k == (col * this.gridSlice)))//Left Down
+                        temp[2] = 6;
+                    if ((j == (row * this.gridSlice)) &&(k == (col * this.gridSlice + gridLength)))//Right Top
+                        temp[2] = 7;
+                    if ((j == (row * this.gridSlice + gridHeight))  && (k == (col * this.gridSlice + gridLength)))//Right Down
+                        temp[2] = 8;
+                    if (j == 0){
+                        if (temp[2] == 5)
+                            temp[2] = 3;
+                        if (temp[2] == 7)
+                            temp[2] = 4;
+                        if (temp[2] == 1)
+                            temp[2] = 0;
+                    }
+                    if ( j == geo.part)
+                    {
+                        if (temp[2] == 6)
+                            temp[2] = 3;
+                        if (temp[2] == 8)
+                            temp[2] = 4;
+                        if (temp[2] == 2)
+                            temp[2] = 0;
+                    }
+
+                    blockTemp.push(temp);
+                }
+            this.block.push(blockTemp);
+        }
+
+
+    };
+
     function initMove(geo1, geo2) {
-        geo1.position.x += 256;
+        geo1.position.x += 300;
         geo1.position.y += 0;
         geo1.position.z += 20;
 
-    };
+    }
 
     function move(geo){
         var len = geo.cygeo.vertices.length;
         var axis = new THREE.Vector3();
-        var angle = Math.PI / 360000;
+        var angle = Math.PI / 3600000;
         axis.x = geo.cygeo.vertices[len - 1].x - geo.cygeo.vertices[len - 2].x;
         axis.y = geo.cygeo.vertices[len - 1].y - geo.cygeo.vertices[len - 2].y;
         axis.z = geo.cygeo.vertices[len - 1].z - geo.cygeo.vertices[len - 2].z;
@@ -232,11 +326,11 @@
         stepAngle += step;
         geo.mesh.position.x += Math.sin(stepAngle)/4;
         geo.mesh.rotateX(Math.cos(stepAngle)/400);
-        console.log('move finish.');
-    };
+        //console.log('move finish.');
+    }
 
-    function bruteForceBasic(geo1,geo2){
-        var calgeo1 = geo1.mesh.geometry.clone();
+    function bearingVerticesTrans(geo1,geo2){
+        calgeo1 = geo1.mesh.geometry.clone();
         var limV1 = calgeo1.vertices.length;
         var positionV = new THREE.Vector3(geo1.mesh.position.x,geo1.mesh.position.y,geo1.mesh.position.z);
         var rotationV = new THREE.Euler(geo1.mesh.rotation.x,geo1.mesh.rotation.y,geo1.mesh.rotation.z,'XYZ');
@@ -245,9 +339,23 @@
             calgeo1.vertices[countv].applyEuler(rotationV);
             calgeo1.vertices[countv].add(positionV);
         };
-        console.log('change finish.');
 
-        var calgeo2 = geo2.mesh.geometry.clone();
+        calgeo2 = geo2.mesh.geometry.clone();
+    }
+
+    function bruteForceBasic(){
+
+        var limV1 = calgeo1.vertices.length;
+//        var positionV = new THREE.Vector3(geo1.mesh.position.x,geo1.mesh.position.y,geo1.mesh.position.z);
+//        var rotationV = new THREE.Euler(geo1.mesh.rotation.x,geo1.mesh.rotation.y,geo1.mesh.rotation.z,'XYZ');
+//        for (var countv = 0; countv < limV1; countv ++ ) {
+//
+//            calgeo1.vertices[countv].applyEuler(rotationV);
+//            calgeo1.vertices[countv].add(positionV);
+//        };
+        //console.log('change finish.');
+
+
         var limV2 = calgeo2.vertices.length;
 
         var ans = [];
@@ -255,7 +363,7 @@
         ans[1] = 0;
         ans[2] = Infinity;
         for (var countg1 = 0; countg1 < limV1; countg1 ++)
-            for (var countg2 = 0; countg2 < limV1; countg2 ++)
+            for (var countg2 = 0; countg2 < limV2; countg2 ++)
             {
                 var dis = (calgeo1.vertices[countg1].x - calgeo2.vertices[countg2].x)*(calgeo1.vertices[countg1].x - calgeo2.vertices[countg2].x)+(calgeo1.vertices[countg1].y - calgeo2.vertices[countg2].y)*(calgeo1.vertices[countg1].y - calgeo2.vertices[countg2].y)+(calgeo1.vertices[countg1].z - calgeo2.vertices[countg2].z)*(calgeo1.vertices[countg1].z - calgeo2.vertices[countg2].z);
                 if (dis < ans[2])
@@ -276,7 +384,220 @@
         sphere2.position.z = calgeo2.vertices[ans[1]].z;
         scene.add(sphere1);
         scene.add(sphere2);
-    };
+    }
+
+    function bruteForceStatic(grid1,grid2){
+        for (var i = 0; i < 36; i++)
+        {
+            var blockLength = grid1.block[i].length;
+            for (var j = 0; j < blockLength; j++)
+            {
+                grid1.block[i][j][0] = calgeo1.vertices[grid1.block[i][j][1]];
+            }
+        }
+
+        var limDis = Infinity;
+        for (var k = 0; k < 36; k++)
+        {
+            var b1Length = grid1.block[k].length;
+            for (var l = 0; l < 36; l++)
+            {
+                var b2Length = grid2.block[l].length;
+                for ( m = 0; m<b1Length; m++)
+                    for ( n = 0; n<b2Length; n++)
+                    {
+                        var dis = (grid1.block[k][m][0].x-grid2.block[l][n][0].x) * (grid1.block[k][m][0].x-grid2.block[l][n][0].x) +(grid1.block[k][m][0].y-grid2.block[l][n][0].y) * (grid1.block[k][m][0].y-grid2.block[l][n][0].y) + (grid1.block[k][m][0].z-grid2.block[l][n][0].z) * (grid1.block[k][m][0].z-grid2.block[l][n][0].z);
+                        if (dis < limDis)
+                        {
+                            myAns[0] = k;
+                            myAns[1] = m;
+                            //myAns[2] = grid1.block[k][m][1];
+                            myAns[2] = l;
+                            myAns[3] = n;
+                            //myAns[5] = grid2.block[l][n][1];
+                            limDis = dis;
+                        }
+                    }
+
+            }
+        }
+
+        caled1 = [];
+        caled2 = [];
+        limDisMotion = Infinity;
+        sphere1.position.x = grid1.block[myAns[0]][myAns[1]][0].x;
+        sphere1.position.y = grid1.block[myAns[0]][myAns[1]][0].y;
+        sphere1.position.z = grid1.block[myAns[0]][myAns[1]][0].z;
+        sphere2.position.x = grid2.block[myAns[2]][myAns[3]][0].x;
+        sphere2.position.y = grid2.block[myAns[2]][myAns[3]][0].y;
+        sphere2.position.z = grid2.block[myAns[2]][myAns[3]][0].z;
+    }
+
+    function isInArray(arr,val){
+        for (var i = 0; i < arr.length; i ++)
+        {
+            if (val === arr[i])
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis){
+        if(isInArray(cal1,myAns[0]) && isInArray(cal2,myAns[2]))
+            return;
+
+        for (var i = 0; i < 36; i++)
+        {
+            var blockLength = grid1.block[i].length;
+            for (var j = 0; j < blockLength; j++)
+            {
+                grid1.block[i][j][0] = calgeo1.vertices[grid1.block[i][j][1]];
+            }
+        }
+
+        var b1length = grid1.block[myAns[0]].length;
+        var b2length = grid2.block[myAns[2]].length;
+
+        var sw1 = 0;
+        var sw2 = 0;
+
+        for ( var i = 0; i < b1length; i++) {
+            for (var j = 0; j < b2length; j++) {
+                var dis = (grid1.block[myAns[0]][i][0].x - grid2.block[myAns[2]][j][0].x) * (grid1.block[myAns[0]][i][0].x - grid2.block[myAns[2]][j][0].x) + (grid1.block[myAns[0]][i][0].y - grid2.block[myAns[2]][j][0].y) * (grid1.block[myAns[0]][i][0].y - grid2.block[myAns[2]][j][0].y) + (grid1.block[myAns[0]][i][0].z - grid2.block[myAns[2]][j][0].z) * (grid1.block[myAns[0]][i][0].z - grid2.block[myAns[2]][j][0].z);
+                if (dis < limdis) {
+                    myAns[1] = i;
+                    myAns[3] = j;
+                    limdis = dis;
+                }
+            }
+        }
+
+        cal1.push(myAns[0]);
+        cal2.push(myAns[2]);
+
+        switch(grid1.block[myAns[0]][myAns[1]][2])
+        {
+            case 0:
+                sw1 = 1;
+                break;
+            case 1:
+                myAns[0] -= 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 2:
+                myAns[0] += 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 3:
+                if(myAns[0] % 6 === 0)
+                    myAns[0] += 5;
+                myAns[0] -= 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 4:
+                if(myAns[0] % 6 === 5)
+                    myAns[0] -= 5;
+                myAns[0] += 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 5:
+                myAns[0] -= 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                if(myAns[0] % 6 === 0)
+                    myAns[0] += 5;
+                myAns[0] -= 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 6:
+                myAns[0] += 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                if(myAns[0] % 6 === 0)
+                    myAns[0] += 5;
+                myAns[0] -= 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 7:
+                myAns[0] -= 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                if(myAns[0] % 6 === 5)
+                    myAns[0] -= 5;
+                myAns[0] += 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 8:
+                myAns[0] += 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                if(myAns[0] % 6 === 5)
+                    myAns[0] -= 5;
+                myAns[0] += 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+
+        }
+
+        switch(grid2.block[myAns[2]][myAns[3]][2])
+        {
+            case 0:
+                sw2 = 1;
+                break;
+            case 1:
+                myAns[2] -= 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 2:
+                myAns[2] += 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 3:
+                if(myAns[2] % 6 === 0)
+                    myAns[2] += 5;
+                myAns[2] -= 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 4:
+                if(myAns[2] % 6 === 5)
+                    myAns[2] -= 5;
+                myAns[2] += 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 5:
+                myAns[2] -= 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                if(myAns[2] % 6 === 0)
+                    myAns[2] += 5;
+                myAns[2] -= 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 6:
+                myAns[2] += 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                if(myAns[2] % 6 === 0)
+                    myAns[2] += 5;
+                myAns[2] -= 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 7:
+                myAns[2] -= 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                if(myAns[2] % 6 === 5)
+                    myAns[2] -= 5;
+                myAns[2] += 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+            case 8:
+                myAns[2] += 6;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                if(myAns[2] % 6 === 5)
+                    myAns[2] -= 5;
+                myAns[2] += 1;
+                bruteForceMotion(grid1, grid2, myAns, cal1, cal2, limdis);
+                break;
+
+        }
+        return;
+    }
 
     function init() {
         if (!Detector.webgl)
@@ -287,6 +608,8 @@
         renderer.setClearColor(0x333366, 1.0);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
+        container = document.createElement( 'div' );
+        document.body.appendChild( container );
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1200);
         camera.position.y = 100;
@@ -318,6 +641,9 @@
         terrain = new Terrain(parseInt(terrain_detail),cylinder_slices);
         terrain.generate(terrain_roughness);
         terrain.cutMap(parseInt(cylinder_slices/6));
+
+        stats = new Stats();
+        container.appendChild( stats.dom );
     }
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -327,10 +653,30 @@
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
+        stats.update();
 
-        if(bearing1){
+        if(1) {
             move(bearing1);
-            bruteForceBasic(bearing1,bearing2);
+            bearingVerticesTrans(bearing1, bearing2);
+            bruteForceBasic(bearing1, bearing2);
+        }
+        if(0){
+            move(bearing1);
+            bearingVerticesTrans(bearing1, bearing2);
+            caled2 = [];
+            caled1 = [];
+            limDisMotion = Infinity;
+            bruteForceMotion(grid1,grid2,myAns,caled1,caled2,limDisMotion);
+            scene.remove(sphere1);
+            scene.remove(sphere2);
+            sphere1.position.x = grid1.block[myAns[0]][myAns[1]][0].x;
+            sphere1.position.y = grid1.block[myAns[0]][myAns[1]][0].y;
+            sphere1.position.z = grid1.block[myAns[0]][myAns[1]][0].z;
+            sphere2.position.x = grid2.block[myAns[2]][myAns[3]][0].x;
+            sphere2.position.y = grid2.block[myAns[2]][myAns[3]][0].y;
+            sphere2.position.z = grid2.block[myAns[2]][myAns[3]][0].z;
+            scene.add(sphere1);
+            scene.add(sphere2);
         }
 
         terrain_detail = parseInt(terrain_detail);
@@ -344,6 +690,12 @@
         bearing1.addMesh(terrain);
         bearing2.addMesh(terrain);
         initMove(bearing1.mesh,bearing2.mesh);
+        grid1 = new Grid(cylinder_slices);
+        grid2 = new Grid(cylinder_slices);
+        grid1.build(bearing1);
+        grid2.build(bearing2);
+        bearingVerticesTrans(bearing1,bearing2);
+        bruteForceStatic(grid1,grid2);
     };
     function generateCylinder(){
         terrain.cutMap(parseInt(cylinder_slices/6));
@@ -354,6 +706,12 @@
         bearing1.addMesh(terrain);
         bearing2.addMesh(terrain);
         initMove(bearing1.mesh,bearing2.mesh);
+        grid1 = new Grid(cylinder_slices);
+        grid2 = new Grid(cylinder_slices);
+        grid1.build(bearing1);
+        grid2.build(bearing2);
+        bearingVerticesTrans(bearing1,bearing2);
+        bruteForceStatic(grid1,grid2);
     };
     init();
     generate();
